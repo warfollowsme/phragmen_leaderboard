@@ -1,8 +1,12 @@
 const { ApiPromise, WsProvider } = require('@polkadot/api')
+const fs = require('fs')
 
 const connect = { }
 
 async function init(){
+    if (!fs.existsSync('./results')){
+        fs.mkdirSync('./results');
+    }
     const provider = new WsProvider('wss://cc1-1.polkadot.network');
     connect.api = await ApiPromise.create({ provider })
     const [chain, nodeName, nodeVersion] = await Promise.all([
