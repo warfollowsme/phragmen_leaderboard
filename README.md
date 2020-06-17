@@ -8,6 +8,8 @@ The application runs a simple web server on port 3000, on which you can get the 
 Also app create winners json files (top20 & top50) in results folder.
 
 ## To run
+`npm update`
+
 `node main.js`
 
 ## To change network
