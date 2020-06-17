@@ -1,0 +1,5 @@
+package-lock.json
+.vscode
+launch.json
+result
+node_modules
