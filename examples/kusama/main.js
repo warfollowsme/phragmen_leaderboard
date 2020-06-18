@@ -1,5 +1,5 @@
 const { connect, init } = require('./connect')
-const { getLeaderboard } = require('../../src/leaderboard')
+const { getLeaderboard } = require('../../src/main')
 const express = require('express')
 const fs = require('fs')
 
