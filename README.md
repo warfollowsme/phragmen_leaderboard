@@ -11,7 +11,7 @@ Also create winners json files in results folder.
 `npm i phragmen-substrate`
 
 ## To run example
-`npm update`
+`npm install`
 
 `node ./examples/polkadot/main.js`
 
