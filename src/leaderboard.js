@@ -1,12 +1,15 @@
-const { connect } = require('./connect')
-const fs = require('fs')
 const BigNumber = require('bignumber.js')
 const _ = require('lodash');
 
-async function getLeaderboard(number) {
-    var nominators = await connect.api.query.staking.nominators.entries()
+/**
+ * Collect data from substrate-base blockchain and get election winners list
+ * @number how many validators will take the lead
+ * @api polkadot-api instance for connect to node
+ */
+async function getLeaderboard(number, api) {
+    var nominators = await api.query.staking.nominators.entries()
     var voters = await Promise.all(nominators.map(async n => {
-        var locks = await connect.api.query.balances.locks(n[0].args.toString())
+        var locks = await api.query.balances.locks(n[0].args.toString())
         var allLock = locks.find(l => l.reasons == 'All')
         return {
             address: n[0].args.toString(),
@@ -25,7 +28,7 @@ async function getLeaderboard(number) {
         })
     })
     for (var t in validators) {
-        var locks = await connect.api.query.balances.locks(t)
+        var locks = await api.query.balances.locks(t)
         var allLock = locks.find(l => l.reasons == 'All')
         if (allLock) {
             voters.push({
@@ -94,7 +97,7 @@ async function getLeaderboard(number) {
             v.load = winner.score;
             _.remove(v.targets, (t) => t == winnerKey);
         });
-        var accountInfo = await connect.api.derive.accounts.info(winnerKey);
+        var accountInfo = await api.derive.accounts.info(winnerKey);
         var name = ''
         if (accountInfo.identity.displayParent || accountInfo.identity.display) {
             var value = "";
@@ -127,8 +130,7 @@ async function getLeaderboard(number) {
             winner.count++;
         }
     })
-    var winnersString = JSON.stringify(winners, null, `\t`)
-    fs.writeFileSync(`./results/winners${number}.json`, winnersString)
+    return winners;
 }
 
 module.exports = {

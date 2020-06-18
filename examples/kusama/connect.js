@@ -7,7 +7,7 @@ async function init(){
     if (!fs.existsSync('./results')){
         fs.mkdirSync('./results');
     }
-    const provider = new WsProvider('wss://cc1-1.polkadot.network');
+    const provider = new WsProvider(process.env.NODE_WS || 'wss://cc3-5.kusama.network/');
     connect.api = await ApiPromise.create({ provider })
     const [chain, nodeName, nodeVersion] = await Promise.all([
         connect.api.rpc.system.chain(),
