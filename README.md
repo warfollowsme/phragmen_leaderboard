@@ -15,13 +15,12 @@ Also create winners json files in results folder.
 const { ApiPromise, WsProvider } = require('@polkadot/api')
 const phragmen = require('phragmen-substrate')
 
-async function main(){
-  const provider = new WsProvider('wss://cc1-1.polkadot.network');
-  const api = await ApiPromise.create({ provider })
-  var top20Winners = await phragmen.getLeaderboard(20, api)
-}
-
-main()
+const provider = new WsProvider('wss://cc1-1.polkadot.network');
+ApiPromise.create({ provider }).then(api => {
+  phragmen.getLeaderboard(20, api).then(result => {
+    console.log(JSON.stringify(result))
+  }
+})
 ```
 
 
