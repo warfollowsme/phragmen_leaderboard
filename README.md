@@ -8,7 +8,7 @@ The example applications runs a simple web server on port 3000, on which you can
 Also create winners json files in results folder.
 
 ## To run example
-`npm update`
+`npm install`
 
 `node ./examples/polkadot/main.js`
 
