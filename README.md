@@ -17,9 +17,9 @@ const phragmen = require('phragmen-substrate')
 
 const provider = new WsProvider('wss://cc1-1.polkadot.network');
 ApiPromise.create({ provider }).then(api => {
-  phragmen.getLeaderboard(20, api).then(result => {
-    console.log(JSON.stringify(result))
-  }
+    phragmen.getLeaderboard(20, api).then(result => {
+        console.log(JSON.stringify(result))
+    })
 })
 ```
 
