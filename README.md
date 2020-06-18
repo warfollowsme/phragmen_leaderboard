@@ -7,6 +7,9 @@ Check wiki about method [here](https://wiki.polkadot.network/docs/en/learn-phrag
 The example applications runs a simple web server on port 3000, on which you can get the top 20 winners of the election. 
 Also create winners json files in results folder.
 
+## Install
+`npm i phragmen-substrate`
+
 ## To run example
 `npm update`
 
