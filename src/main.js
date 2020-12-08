@@ -1,5 +1,10 @@
 const BigNumber = require('bignumber.js')
 const _ = require('lodash');
+const fs = require('fs')
+
+let balances = {}
+
+const VotersDataFile = './results/voters.json'
 
 /**
  * Collect data from substrate-base blockchain and get election winners list
@@ -7,9 +12,31 @@ const _ = require('lodash');
  * @api polkadot-api instance for connect to node
  */
 async function getLeaderboard(number, api) {
-    var nominators = await api.query.staking.nominators.entries()
+    let voters
+    if (fs.existsSync(VotersDataFile)) {
+        voters = JSON.parse(fs.readFileSync(VotersDataFile,'utf8'))
+    }else{
+        voters = await scrape(api)
+    }
+    await phragmen(api,voters,number)
+}
+
+const scrape = async (api)=>{
+    console.time('get nominators')
+    var nominators_all = await api.query.staking.nominators.entries()
+    console.timeEnd('get nominators')
+    console.log(`all nominators num:${nominators_all.length}`)
+    console.time('get validators')
+    var validators_all = await api.query.staking.validators.entries()
+    console.timeEnd('get validators')
+    console.log(`all validators num:${validators_all.length}`)
+    var nominators = nominators_all.slice(0,256)
+    console.log(`nominators:\n` + JSON.stringify(nominators, null, `\t`))
+    console.time('get locked votes')
     var voters = await Promise.all(nominators.map(async n => {
         var locks = await api.query.balances.locks(n[0].args.toString())
+        //console.log(`balance locked for voter ${n[0].args.toString()}:\n` + JSON.stringify(locks, null, `\t`))
+        balances[n[0].args.toString()]=locks
         var allLock = locks.find(l => l.reasons == 'All')
         return {
             address: n[0].args.toString(),
@@ -19,6 +46,7 @@ async function getLeaderboard(number, api) {
             load: new BigNumber(0)
         }
     }))
+    console.log(voters.length + ' voters find:\n' + JSON.stringify(voters, null, `\t`))
     var validators = {}
     voters.forEach(v => {
         v.targets.forEach(t => {
@@ -27,8 +55,10 @@ async function getLeaderboard(number, api) {
             }
         })
     })
+    console.log(Object.keys(validators).length + ' validators find')
     for (var t in validators) {
-        var locks = await api.query.balances.locks(t)
+        var locks = balances[t]||await api.query.balances.locks(t)
+        //console.log(`balance locked for validator ${t}:\n` + JSON.stringify(locks, null, `\t`))
         var allLock = locks.find(l => l.reasons == 'All')
         if (allLock) {
             voters.push({
@@ -40,6 +70,7 @@ async function getLeaderboard(number, api) {
             })
         }
     }
+    console.timeEnd('get locked votes')
 
     /*Test sample from
     https://wiki.polkadot.network/docs/en/learn-phragmen
@@ -49,17 +80,26 @@ async function getLeaderboard(number, api) {
         {name:'V3', bond:new BigNumber(3), load: new BigNumber(0), edges: {}, targets:['A']},
         {name:'V4', bond:new BigNumber(4), load: new BigNumber(0), edges: {}, targets:['B','C','D']},
         {name:'V5', bond:new BigNumber(5), load: new BigNumber(0), edges: {}, targets:['A','D']}
-    ]    
-    var validators = {        
+    ]
+    var validators = {
         "A":new BigNumber(0),
         "B":new BigNumber(0),
         "C":new BigNumber(0),
         "D":new BigNumber(0),
         "E":new BigNumber(0)
     }*/
+    fs.writeFileSync(VotersDataFile, JSON.stringify(voters, null, `\t`))
+    return voters
+}
 
+const phragmen = async (api,voters,number)=>{
+    console.time('phragmen')
     var winners = [];
     var candidates = {}
+    voters.forEach(v => {
+        v.bond = new BigNumber(v.bond)
+        v.load = new BigNumber(v.load)
+    })
     voters.forEach(v => {
         _.uniq(v.targets).forEach(t => {
             if (!candidates[t]) {
@@ -71,9 +111,9 @@ async function getLeaderboard(number, api) {
                 }
             }
             candidates[t].totalVotes = candidates[t].totalVotes.plus(v.bond);
-            candidates[t].voters.push({ 
-                address: v.address, 
-                bond: v.bond.dividedBy(new BigNumber('1e12')) 
+            candidates[t].voters.push({
+                address: v.address,
+                bond: v.bond.dividedBy(new BigNumber('1e12'))
             });
         })
     })
@@ -85,7 +125,7 @@ async function getLeaderboard(number, api) {
         voters.forEach(v => {
             _.uniq(v.targets).forEach(t => {
                 candidates[t].score = candidates[t].score.plus(v.load.multipliedBy(v.bond)
-                                                        .dividedBy(candidates[t].totalVotes))
+                    .dividedBy(candidates[t].totalVotes))
             })
         })
         var winnerKey = _.minBy(Object.keys(candidates), (key) => {
@@ -130,7 +170,8 @@ async function getLeaderboard(number, api) {
             winner.count++;
         }
     })
-    return winners;
+    console.timeEnd('phragmen')
+    return winners
 }
 
 module.exports = {

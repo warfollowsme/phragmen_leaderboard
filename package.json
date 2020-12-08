@@ -28,7 +28,7 @@
     "lodash": "^4.17.15"
   },
   "devDependencies": {
-    "@polkadot/api": "^1.19.1",
+    "@polkadot/api": "^2.9.1",
     "express": "^4.17.1"
   }
 }

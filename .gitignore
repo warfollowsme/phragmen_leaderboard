@@ -3,3 +3,4 @@ package-lock.json
 launch.json
 results
 node_modules
+.idea
