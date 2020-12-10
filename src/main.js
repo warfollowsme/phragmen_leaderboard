@@ -3,6 +3,7 @@ const _ = require('lodash');
 const fs = require('fs')
 
 let balances = {}
+let accounts = {}
 
 const VotersDataFile = './results/voters.json'
 
@@ -12,13 +13,15 @@ const VotersDataFile = './results/voters.json'
  * @api polkadot-api instance for connect to node
  */
 async function getLeaderboard(number, api) {
-    let voters
+    let voters,candidates,result
     if (fs.existsSync(VotersDataFile)) {
-        voters = JSON.parse(fs.readFileSync(VotersDataFile,'utf8'))
+        result = JSON.parse(fs.readFileSync(VotersDataFile,'utf8'))
     }else{
-        voters = await scrape(api)
+        result = await scrape(api)
     }
-    await phragmen(api,voters,number)
+    voters = result.voters
+    candidates = result.candidates
+    return await phragmen(voters,candidates,number)
 }
 
 const scrape = async (api)=>{
@@ -26,10 +29,6 @@ const scrape = async (api)=>{
     var nominators_all = await api.query.staking.nominators.entries()
     console.timeEnd('get nominators')
     console.log(`all nominators num:${nominators_all.length}`)
-    console.time('get validators')
-    var validators_all = await api.query.staking.validators.entries()
-    console.timeEnd('get validators')
-    console.log(`all validators num:${validators_all.length}`)
     var nominators = nominators_all.slice(0,256)
     console.log(`nominators:\n` + JSON.stringify(nominators, null, `\t`))
     console.time('get locked votes')
@@ -42,8 +41,7 @@ const scrape = async (api)=>{
             address: n[0].args.toString(),
             targets: n[1].toJSON().targets,
             edges: {},
-            bond: new BigNumber(allLock.amount.toString()),
-            load: new BigNumber(0)
+            bond: new BigNumber(allLock.amount.toString())
         }
     }))
     console.log(voters.length + ' voters find:\n' + JSON.stringify(voters, null, `\t`))
@@ -65,13 +63,49 @@ const scrape = async (api)=>{
                 address: t,
                 targets: [t],
                 edges: {},
-                bond: new BigNumber(allLock.amount.toString()),
-                load: new BigNumber(0)
+                bond: new BigNumber(allLock.amount.toString())
             })
         }
     }
     console.timeEnd('get locked votes')
 
+    const getAccountName = async (accountId)=>{
+        var accountInfo = await api.derive.accounts.info(accountId);
+        var name = ''
+        if (accountInfo.identity.displayParent || accountInfo.identity.display) {
+            var value = "";
+            if (accountInfo.identity.displayParent) {
+                value += accountInfo.identity.displayParent + ':'
+            }
+            if (accountInfo.identity.display) {
+                value += accountInfo.identity.display
+            }
+            name = value;
+        }
+        return name
+    }
+
+    var candidates = {}
+    for(let v of voters){
+        let targets = _.uniq(v.targets)
+        for(let t of targets){
+            if (!candidates[t]) {
+                candidates[t] = {
+                    totalVotes: new BigNumber(0),
+                    voters: []
+                }
+                candidates[t].name = accounts[t]||await getAccountName(t)
+                if(candidates[t].name){
+                    accounts[t] = candidates[t].name
+                }
+            }
+            candidates[t].totalVotes = candidates[t].totalVotes.plus(v.bond);
+            candidates[t].voters.push({
+                address: v.address,
+                bond: v.bond.dividedBy(new BigNumber('1e12'))
+            });
+        }
+    }
     /*Test sample from
     https://wiki.polkadot.network/docs/en/learn-phragmen
     var voters = [
@@ -88,35 +122,26 @@ const scrape = async (api)=>{
         "D":new BigNumber(0),
         "E":new BigNumber(0)
     }*/
-    fs.writeFileSync(VotersDataFile, JSON.stringify(voters, null, `\t`))
-    return voters
+    fs.writeFileSync(VotersDataFile, JSON.stringify({voters,candidates}, null, `\t`))
+    return {voters,candidates}
 }
 
-const phragmen = async (api,voters,number)=>{
+const phragmen = async (voters,candidates,number)=>{
     console.time('phragmen')
-    var winners = [];
-    var candidates = {}
     voters.forEach(v => {
-        v.bond = new BigNumber(v.bond)
-        v.load = new BigNumber(v.load)
+        v.load = new BigNumber(0)
+        v.bond = new BigNumber(v.bond.toString())
     })
-    voters.forEach(v => {
-        _.uniq(v.targets).forEach(t => {
-            if (!candidates[t]) {
-                candidates[t] = {
-                    totalVotes: new BigNumber(0),
-                    stake: new BigNumber(0),
-                    score: new BigNumber(0),
-                    voters: []
-                }
-            }
-            candidates[t].totalVotes = candidates[t].totalVotes.plus(v.bond);
-            candidates[t].voters.push({
-                address: v.address,
-                bond: v.bond.dividedBy(new BigNumber('1e12'))
-            });
+    for(var key in candidates){
+        let c = candidates[key]
+        c.stake = new BigNumber(0)
+        c.score = new BigNumber(0)
+        c.totalVotes = new BigNumber(c.totalVotes.toString())
+        c.voters.forEach(v => {
+            v.bond = new BigNumber(v.bond.toString())
         })
-    })
+    }
+    var winners = [];
     for (var i = 0; i < number; i++) {
         Object.keys(candidates).forEach(key => {
             candidates[key].score = new BigNumber(1).dividedBy(candidates[key].totalVotes)
@@ -137,21 +162,9 @@ const phragmen = async (api,voters,number)=>{
             v.load = winner.score;
             _.remove(v.targets, (t) => t == winnerKey);
         });
-        var accountInfo = await api.derive.accounts.info(winnerKey);
-        var name = ''
-        if (accountInfo.identity.displayParent || accountInfo.identity.display) {
-            var value = "";
-            if (accountInfo.identity.displayParent) {
-                value += accountInfo.identity.displayParent + ':'
-            }
-            if (accountInfo.identity.display) {
-                value += accountInfo.identity.display
-            }
-            name = value;
-        }
         winners.push({
             address: winnerKey,
-            name: name,
+            name: winner.name,
             voters: winner.voters,
             totalVotes: winner.totalVotes.dividedBy(new BigNumber('1e12')),
             stake: winner.stake,

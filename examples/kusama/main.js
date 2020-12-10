@@ -30,17 +30,11 @@ app.listen(process.env.SERVER_PORT || 3000)
 
 async function startScanning() {
     await init()
-    var tops = [20,25,50]
+    var tops = [20]
     tops.forEach(number => {        
         getLeaderboard(number, connect.api).then(result => {
             var winnersString = JSON.stringify(result, null, `\t`)
             fs.writeFileSync(`./results/winners${number}.json`, winnersString)
         })
-        setInterval(function (number, api) {
-            getLeaderboard(number, api).then(result => {
-                var winnersString = JSON.stringify(result, null, `\t`)
-                fs.writeFileSync(`./results/winners${number}.json`, winnersString)
-            })
-        }, 180000, number, connect.api);
     });
 }
